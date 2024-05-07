@@ -9,6 +9,7 @@ using ManageInformation.Data;
 using ManageInformation.Model;
 using Microsoft.VisualBasic;
 using Newtonsoft.Json;
+using Microsoft.OpenApi.Extensions;
 
 namespace ManageInformation.Controllers
 {
@@ -32,40 +33,71 @@ namespace ManageInformation.Controllers
             return Ok(manage);
         }
 
-        // Get all the information of people
+        // Get all the information of people with pagination
         [HttpGet]
-        public IActionResult List()
+        public IActionResult List(int pageNumber = 1, int pageSize = 10)
         {
-            var people = _context.Information.ToList();
-            return Ok(people);
+            var totalItems = _context.Information.Count();
+            var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+            var people = _context.Information
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+                
+            var response = new
+            {
+                TotalItems = totalItems,
+                TotalPages = totalPages,
+                PageSize = pageSize,
+                CurrentPage = pageNumber,
+                People = people
+            };
+
+            return Ok(response);
         }
 
-        // Filter by Name or Dob 
-        [HttpGet("search")]
-        public IActionResult SearchByNameOrDOB(string? name, DateTime? dob)
-        {
-            var people = _context.Information.AsQueryable();
 
-            if (!string.IsNullOrEmpty(name))
+        // Search by name or dob
+        [HttpGet("Search")]
+        public IActionResult Index(string? name, DateTime? dob)
+        {
+            var people = from p in _context.Information
+                         select p;
+
+            if (!String.IsNullOrEmpty(name))
             {
-                people = people.Where(p => p.Name == name);
+                people = people.Where(s => s.Name.Contains(name));
             }
 
             if (dob != null)
             {
-                people = people.Where(p => p.DOB == dob);
+                people = people.Where(s => s.DOB == dob);   
             }
-
-            var result = people.ToList();
-
-            if (result.Count == 0)
-            {
-                return NotFound();
-            }
-
-            return Ok(result);
+             
+            return Ok(people.ToList());
         }
         
+
+        // Get by Id
+        [HttpGet("{id:int}")]
+        public async Task<ActionResult<Manage>> GetPeople(int id)
+        {
+            try
+            {
+                var result = await _context.Information.FindAsync(id);
+
+                if (result == null) return NotFound();
+
+                return result;
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    "Error retrieving data from the database");
+            }
+        }
+
 
         // Edit information of people
         [HttpPut("{id}")]
@@ -74,13 +106,14 @@ namespace ManageInformation.Controllers
             var person = _context.Information.Find(id);
             if (person == null)
                 return NotFound();
-
+            
             person.Name = updatedInformation.Name;
-            person.DOB = updatedInformation.DOB;
-
+            person.DOB =updatedInformation.DOB;
+            
             _context.SaveChanges();
             return Ok(person);
         }
+      
 
         // Delete by id
         [HttpDelete("{id}")]
@@ -99,7 +132,7 @@ namespace ManageInformation.Controllers
         [HttpDelete("multiple")]
         public IActionResult DeleteMultiple([FromBody] int[] ids)
         {
-            var people = _context.Information.Where(p => ids.Contains(p.Id)).ToList();
+            var people = _context.Information.Where(async => ids.Contains(async.Id)).ToList();
             _context.Information.RemoveRange(people);
             _context.SaveChanges();
             return NoContent();

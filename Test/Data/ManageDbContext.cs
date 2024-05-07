@@ -1,4 +1,5 @@
 ﻿using ManageInformation.Model;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ManageInformation.Data
@@ -11,5 +12,6 @@ namespace ManageInformation.Data
         }
 
         public DbSet<Manage> Information { get; set; }
+
     }
 }
